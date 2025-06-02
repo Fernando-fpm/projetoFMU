@@ -1,26 +1,29 @@
 package com.fern.projetofmu;
 
-import android.content.Intent;
+import android.content.DialogInterface;
 import android.os.Bundle;
-import android.widget.Toast;
+import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.fern.projetofmu.Adapter.ToDoAdapter;
+import com.fern.projetofmu.Utils.AddNovaTarefa;
+import com.fern.projetofmu.Utils.GerenciadorBD;
 import com.fern.projetofmu.model.ToDoModel;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements DialogCloseListener {
 
     private RecyclerView tarefaRecyclerView;
     private ToDoAdapter tasksAdapter;
-    private List<ToDoModel> taskList;
-
-    private static final int REQUEST_CODE_ADD_TASK = 1;
+    private FloatingActionButton fab;
+    private GerenciadorBD db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,30 +33,33 @@ public class MainActivity extends AppCompatActivity {
         tarefaRecyclerView = findViewById(R.id.tasksRecyclerView);
         tarefaRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        taskList = new ArrayList<>();
-        tasksAdapter = new ToDoAdapter(this);
+        db = new GerenciadorBD(this);
+        db.openDatabase();
+
+        tasksAdapter = new ToDoAdapter(db, this);
         tarefaRecyclerView.setAdapter(tasksAdapter);
 
-        //  quando o botão add for clicado a AddTaskActivity é chamada
-        findViewById(R.id.fab).setOnClickListener(view -> {
-            Intent intent = new Intent(MainActivity.this, AddTaskActivity.class);
-            startActivityForResult(intent, REQUEST_CODE_ADD_TASK);
+        fab = findViewById(R.id.fab);
+        fab.setOnClickListener(v -> {
+            AddNovaTarefa.newInstance().show(getSupportFragmentManager(), AddNovaTarefa.TAG);
         });
+
+        DeslizeRecycler deslizeRecycler = new DeslizeRecycler(tasksAdapter);
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(deslizeRecycler);
+        itemTouchHelper.attachToRecyclerView(tarefaRecyclerView);
+
+        loadTasks();
     }
 
-    // Recebe a tarefa de volta da AddTaskActivity
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    private void loadTasks() {
+        List<ToDoModel> taskList = db.getAllTasks();
+        Collections.reverse(taskList);
+        tasksAdapter.setTasks(taskList);
+    }
 
-        if (requestCode == REQUEST_CODE_ADD_TASK && resultCode == RESULT_OK) {
-            String novaTarefa = data.getStringExtra("nova_tarefa");
-            ToDoModel task = new ToDoModel();
-            task.setTask(novaTarefa);
-            task.setStatus(0); // Defina o status como 0 (não concluída)
-            taskList.add(task);
-            tasksAdapter.setTasks(taskList); // Atualiza o RecyclerView
-            Toast.makeText(this, "Tarefa adicionada: " + novaTarefa, Toast.LENGTH_SHORT).show();
-        }
+    @Override
+    public void handleDialogClose(DialogInterface dialog) {
+        loadTasks();
+        tasksAdapter.notifyDataSetChanged();
     }
 }
